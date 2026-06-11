@@ -1,0 +1,226 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String         @id @default(uuid())
+  email        String         @unique
+  passwordHash String
+  displayName  String
+  role          String         @default("PUBLIC")
+  reputation   Int            @default(0)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  observations  Observation[]
+  media         Media[]
+  analyses      Analysis[]
+  subscriptions Subscription[]
+  notifications Notification[]
+  groupMembers  GroupMember[]
+  assignedTasks Task[]         @relation("TaskAssignee")
+  reviews       Review[]
+  mergeLogs     MergeLog[]     @relation("MergeLogMergedBy")
+
+  @@index([email])
+  @@index([role])
+}
+
+model Observation {
+  id              String   @id @default(uuid())
+  title           String
+  description     String
+  latitude        Float
+  longitude       Float
+  altitude        Float?
+  observedAt      DateTime
+  category        String   @default("OTHER")
+  status          String   @default("PENDING")
+  credibilityScore Float   @default(0)
+  isPublic        Boolean  @default(true)
+  userId          String
+  eventId         String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user               User       @relation(fields: [userId], references: [id])
+  event              Event?     @relation(fields: [eventId], references: [id])
+  media              Media[]
+  analyses           Analysis[]
+  reviews            Review[]
+  sourceMergeLogs    MergeLog[] @relation("MergeSource")
+  targetMergeLogs    MergeLog[] @relation("MergeTarget")
+
+  @@index([userId])
+  @@index([eventId])
+  @@index([category])
+  @@index([status])
+  @@index([observedAt])
+  @@index([isPublic])
+}
+
+model Media {
+  id            String   @id @default(uuid())
+  filename      String
+  originalName  String
+  mimeType      String
+  size          Int
+  path          String
+  observationId String
+  userId        String
+  createdAt     DateTime @default(now())
+
+  observation Observation @relation(fields: [observationId], references: [id])
+  user        User        @relation(fields: [userId], references: [id])
+
+  @@index([observationId])
+  @@index([userId])
+}
+
+model Analysis {
+  id            String   @id @default(uuid())
+  content       String
+  type          String   @default("PRELIMINARY")
+  observationId String
+  userId        String
+  createdAt     DateTime @default(now())
+
+  observation Observation @relation(fields: [observationId], references: [id])
+  user        User        @relation(fields: [userId], references: [id])
+
+  @@index([observationId])
+  @@index([userId])
+}
+
+model Event {
+  id          String   @id @default(uuid())
+  name        String
+  description String
+  summary     String?
+  startDate   DateTime
+  endDate     DateTime?
+  latitude    Float
+  longitude   Float
+  radiusKm    Float
+  status      String   @default("ACTIVE")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  observations Observation[]
+
+  @@index([status])
+  @@index([startDate])
+}
+
+model Subscription {
+  id         String   @id @default(uuid())
+  userId     String
+  regionName String
+  latitude   Float
+  longitude  Float
+  radiusKm   Float
+  createdAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  type      String
+  title     String
+  content   String
+  isRead    Boolean  @default(false)
+  relatedId String?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([isRead])
+}
+
+model Group {
+  id          String   @id @default(uuid())
+  name        String
+  description String
+  createdAt   DateTime @default(now())
+
+  members GroupMember[]
+  tasks   Task[]
+
+  @@index([name])
+}
+
+model GroupMember {
+  id       String   @id @default(uuid())
+  groupId  String
+  userId   String
+  role     String   @default("MEMBER")
+  joinedAt DateTime @default(now())
+
+  group Group @relation(fields: [groupId], references: [id])
+  user  User  @relation(fields: [userId], references: [id])
+
+  @@unique([groupId, userId])
+  @@index([groupId])
+  @@index([userId])
+}
+
+model Task {
+  id          String    @id @default(uuid())
+  groupId     String
+  title       String
+  description String
+  assigneeId  String?
+  status      String    @default("PENDING")
+  dueDate     DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  group    Group  @relation(fields: [groupId], references: [id])
+  assignee User?  @relation("TaskAssignee", fields: [assigneeId], references: [id])
+
+  @@index([groupId])
+  @@index([assigneeId])
+  @@index([status])
+}
+
+model Review {
+  id            String   @id @default(uuid())
+  observationId String
+  reviewerId    String
+  opinion       String
+  comment       String?
+  createdAt     DateTime @default(now())
+
+  observation Observation @relation(fields: [observationId], references: [id])
+  reviewer    User        @relation(fields: [reviewerId], references: [id])
+
+  @@index([observationId])
+  @@index([reviewerId])
+}
+
+model MergeLog {
+  id                   String   @id @default(uuid())
+  sourceObservationId  String
+  targetObservationId  String
+  mergedBy             String
+  reason               String
+  createdAt            DateTime @default(now())
+
+  sourceObservation Observation @relation("MergeSource", fields: [sourceObservationId], references: [id])
+  targetObservation Observation @relation("MergeTarget", fields: [targetObservationId], references: [id])
+  mergedByUser      User        @relation("MergeLogMergedBy", fields: [mergedBy], references: [id])
+
+  @@index([sourceObservationId])
+  @@index([targetObservationId])
+  @@index([mergedBy])
+}
