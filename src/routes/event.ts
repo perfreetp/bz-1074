@@ -90,7 +90,13 @@ eventRouter.get(
       throw new NotFoundError('Event not found');
     }
 
-    res.json(event);
+    const result: any = event;
+    if (!isResearcher) {
+      const { summary, ...rest } = result;
+      res.json(rest);
+    } else {
+      res.json(result);
+    }
   })
 );
 
@@ -169,11 +175,19 @@ eventRouter.post(
     if (count === 0) {
       const updated = await prisma.event.update({
         where: { id },
-        data: { summary: 'No observations linked to this event.' },
+        data: { summary: '该事件暂无关联线索。' },
       });
       res.json(updated);
       return;
     }
+
+    const categoryNames: Record<string, string> = {
+      UFO: '不明飞行物',
+      CELEBRITY_SIGNAL: '疑似信号',
+      ANOMALY: '异常现象',
+      TRACE: '物理痕迹',
+      OTHER: '其他',
+    };
 
     const dates = observations.map((o: any) => new Date(o.observedAt).getTime());
     const minDate = new Date(Math.min(...dates)).toISOString().split('T')[0];
@@ -189,14 +203,14 @@ eventRouter.post(
       observations.reduce((sum: number, o: any) => sum + o.credibilityScore, 0) / count;
 
     const categoryLines = Object.entries(categoryDist)
-      .map(([cat, num]) => `${cat}: ${num}`)
-      .join(', ');
+      .map(([cat, num]) => `${categoryNames[cat] || cat}: ${num}`)
+      .join('、');
 
     const summaryText = [
-      `Observation count: ${count}`,
-      `Date range: ${minDate} to ${maxDate}`,
-      `Category distribution: ${categoryLines}`,
-      `Average credibility: ${avgCredibility.toFixed(2)}`,
+      `线索数量: ${count}`,
+      `时间范围: ${minDate} 至 ${maxDate}`,
+      `分类分布: ${categoryLines}`,
+      `平均可信度: ${avgCredibility.toFixed(2)}`,
     ].join('\n');
 
     const updated = await prisma.event.update({

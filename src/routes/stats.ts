@@ -121,7 +121,7 @@ statsRouter.get(
       await Promise.all([
         prisma.observation.count({ where: obsWhere }),
         prisma.event.count({ where: { status: 'ACTIVE' } }),
-        prisma.groupMember.groupBy({ by: ['groupId'] }).then((r) => new Set(r.map((g) => g.groupId)).size),
+        prisma.group.count(),
         prisma.review.count(),
         prisma.observation.groupBy({
           by: ['category'],

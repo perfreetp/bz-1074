@@ -16,6 +16,12 @@ collaborationRouter.post(
       throw new NotFoundError('Observation not found');
     }
 
+    const user = (req as any).user;
+    const isPrivileged = user.role === 'EXPERT' || user.role === 'ADMIN';
+    if (observation.userId !== user.userId && !isPrivileged) {
+      throw new ForbiddenError('Only the observation owner or EXPERT/ADMIN can request a review');
+    }
+
     if (!['PENDING', 'REVIEWING'].includes(observation.status)) {
       throw new ValidationError('Observation must be in PENDING or REVIEWING status to request review');
     }

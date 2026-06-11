@@ -75,7 +75,8 @@ mediaRouter.get(
       throw new NotFoundError('Observation not found');
     }
 
-    if (!observation.isPublic && (!user || user.userId !== observation.userId)) {
+    const isPrivileged = user && ['EXPERT', 'ADMIN'].includes(user.role);
+    if (!observation.isPublic && (!user || (user.userId !== observation.userId && !isPrivileged))) {
       throw new ForbiddenError('You do not have access to this observation');
     }
 
@@ -171,7 +172,8 @@ mediaRouter.get(
       throw new NotFoundError('Observation not found');
     }
 
-    if (!observation.isPublic && (!user || user.userId !== observation.userId)) {
+    const isPrivileged = user && ['EXPERT', 'ADMIN'].includes(user.role);
+    if (!observation.isPublic && (!user || (user.userId !== observation.userId && !isPrivileged))) {
       throw new ForbiddenError('You do not have access to this observation');
     }
 

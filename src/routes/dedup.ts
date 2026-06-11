@@ -66,7 +66,21 @@ dedupRouter.post('/merge', authenticateToken, catchAsync(async (req, res) => {
       },
     });
 
-    if (target.eventId) {
+    if (source.eventId && target.eventId && source.eventId !== target.eventId) {
+      await tx.observation.updateMany({
+        where: { eventId: source.eventId, id: { not: sourceId } },
+        data: { eventId: target.eventId },
+      });
+      await tx.observation.update({
+        where: { id: sourceId },
+        data: { eventId: target.eventId },
+      });
+    } else if (source.eventId && !target.eventId) {
+      await tx.observation.update({
+        where: { id: targetId },
+        data: { eventId: source.eventId },
+      });
+    } else if (target.eventId) {
       await tx.observation.update({
         where: { id: sourceId },
         data: { eventId: target.eventId },
