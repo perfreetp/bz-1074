@@ -153,7 +153,9 @@ observationRouter.get(
     }
 
     const userId = (req as any).user?.userId;
-    if (!observation.isPublic && observation.userId !== userId) {
+    const userRole = (req as any).user?.role;
+    const isPrivileged = userRole === 'EXPERT' || userRole === 'ADMIN';
+    if (!observation.isPublic && observation.userId !== userId && !isPrivileged) {
       throw new ForbiddenError('You do not have access to this observation');
     }
 

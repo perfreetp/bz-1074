@@ -155,15 +155,16 @@ notificationRouter.get(
 
     const subscriptions = await prisma.subscription.findMany({ where: { userId } });
 
-    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-
-    const recentObservations = await prisma.observation.findMany({
-      where: { createdAt: { gte: twentyFourHoursAgo } },
-    });
-
     let alertsCreated = 0;
 
     for (const sub of subscriptions) {
+      const recentObservations = await prisma.observation.findMany({
+        where: {
+          createdAt: { gte: sub.createdAt },
+          isPublic: true,
+        },
+      });
+
       const matchingObservations = recentObservations.filter((obs) => {
         const distance = haversineKm(sub.latitude, sub.longitude, obs.latitude, obs.longitude);
         return distance <= sub.radiusKm;

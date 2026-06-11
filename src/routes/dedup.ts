@@ -51,9 +51,11 @@ dedupRouter.post('/merge', authenticateToken, catchAsync(async (req, res) => {
 
   const isOwner = source.userId === user.userId && target.userId === user.userId;
   const isPrivileged = user.role === 'EXPERT' || user.role === 'ADMIN';
+  const canHandleSource = source.userId === user.userId || isPrivileged;
+  const canHandleTarget = target.userId === user.userId || isPrivileged;
 
-  if (!isOwner && !isPrivileged) {
-    throw new ForbiddenError('You must own both observations or have EXPERT/ADMIN role');
+  if (!(isOwner || (canHandleSource && canHandleTarget && isPrivileged))) {
+    throw new ForbiddenError('You must have disposal rights over both observations (owner or EXPERT/ADMIN)');
   }
 
   const mergeLog = await prisma.$transaction(async (tx) => {
@@ -66,25 +68,33 @@ dedupRouter.post('/merge', authenticateToken, catchAsync(async (req, res) => {
       },
     });
 
-    if (source.eventId && target.eventId && source.eventId !== target.eventId) {
+    const sourceEventId = source.eventId;
+    const targetEventId = target.eventId;
+    const eventsToCheckForEmpty: string[] = [];
+
+    if (sourceEventId && targetEventId && sourceEventId !== targetEventId) {
       await tx.observation.updateMany({
-        where: { eventId: source.eventId, id: { not: sourceId } },
-        data: { eventId: target.eventId },
+        where: { eventId: sourceEventId, id: { not: sourceId } },
+        data: { eventId: targetEventId },
       });
       await tx.observation.update({
         where: { id: sourceId },
-        data: { eventId: target.eventId },
+        data: { eventId: targetEventId },
       });
-    } else if (source.eventId && !target.eventId) {
+      eventsToCheckForEmpty.push(sourceEventId);
+    } else if (sourceEventId && !targetEventId) {
       await tx.observation.update({
         where: { id: targetId },
-        data: { eventId: source.eventId },
+        data: { eventId: sourceEventId },
       });
-    } else if (target.eventId) {
+    } else if (targetEventId) {
       await tx.observation.update({
         where: { id: sourceId },
-        data: { eventId: target.eventId },
+        data: { eventId: targetEventId },
       });
+      if (sourceEventId && sourceEventId !== targetEventId) {
+        eventsToCheckForEmpty.push(sourceEventId);
+      }
     }
 
     await tx.media.updateMany({
@@ -103,6 +113,16 @@ dedupRouter.post('/merge', authenticateToken, catchAsync(async (req, res) => {
     });
 
     await tx.observation.delete({ where: { id: sourceId } });
+
+    for (const eid of eventsToCheckForEmpty) {
+      const remaining = await tx.observation.count({ where: { eventId: eid } });
+      if (remaining === 0) {
+        await tx.event.update({
+          where: { id: eid },
+          data: { status: 'ARCHIVED', summary: null },
+        });
+      }
+    }
 
     return log;
   });

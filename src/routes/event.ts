@@ -261,12 +261,24 @@ eventRouter.delete(
       throw new NotFoundError('Event not found');
     }
 
-    await prisma.observation.updateMany({
-      where: { eventId: id },
-      data: { eventId: null },
-    });
+    await prisma.$transaction(async (tx) => {
+      const linkedObservations = await tx.observation.findMany({
+        where: { eventId: id },
+        select: { id: true },
+      });
+      const linkedObsIds = linkedObservations.map((o) => o.id);
 
-    await prisma.event.delete({ where: { id } });
+      if (linkedObsIds.length > 0) {
+        await tx.analysis.deleteMany({ where: { observationId: { in: linkedObsIds } } });
+      }
+
+      await tx.observation.updateMany({
+        where: { eventId: id },
+        data: { eventId: null },
+      });
+
+      await tx.event.delete({ where: { id } });
+    });
 
     res.status(204).send();
   })
